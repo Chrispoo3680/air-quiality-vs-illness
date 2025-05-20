@@ -9,3 +9,7 @@ A project that aims to find out if there is any correlation between the air qual
 
 ### Asthma hospitilizations
 - https://www.kaggle.com/datasets/rabieelkharoua/asthma-disease-dataset
+
+### Illness datasets
+- https://vizhub.healthdata.org/gbd-results/
+- https://api.healthdata.org/sdg/v1/
