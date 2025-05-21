@@ -10,6 +10,7 @@ dependencies = [
     "matplotlib>=3.10.3",
     "pandas>=2.2.3",
     "polars>=1.29.0",
+    "pycountry>=24.6.1",
     "pyyaml>=6.0.2",
     "tensorboard>=2.19.0",
     "torch==2.7.0",

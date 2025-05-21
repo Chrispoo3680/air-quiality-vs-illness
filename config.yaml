@@ -16,6 +16,8 @@ results_path: results/
 logging_path: logs/
 logging_level: debug
 
-# API KEYS
+# API
+openaq_api_url: https://api.openaq.org/v3/
 openaq_api_key: fa7fb3574dffa89fac565317f05c87f007f5418c958af18ccd7a29810e7fffd0
+
 ihme_api_key: 0u71itrqlwvjl68wuf81rvbeoeq297zt
