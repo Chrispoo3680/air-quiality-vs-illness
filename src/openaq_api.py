@@ -18,7 +18,7 @@ def get_iso_country_codes(country_names: List[str]) -> List[str]:
     return filtered_iso_codes
 
 
-def get_location_ids(iso_codes: List[str], limit=100):
+def get_location_ids(iso_codes: List[str], limit=1000):
 
     config = load_config()
 
@@ -28,10 +28,21 @@ def get_location_ids(iso_codes: List[str], limit=100):
     locations = defaultdict(list)
 
     for iso in iso_codes:
-        params = {"iso": iso, "limit": limit}
-        response = requests.get(endpoint, params=params, headers=headers)
+        page = 1
+        retrieved = False
 
-        for loc in response.json()["results"]:
-            locations[loc["country"]["code"]].append(loc)
+        while not retrieved:
+            params = {"iso": iso, "limit": limit, "page": page}
+
+            response = requests.get(endpoint, params=params, headers=headers)
+            response_json = response.json()
+
+            for loc in response_json["results"]:
+                locations[loc["country"]["code"]].append(loc)
+
+            if response_json["meta"]["found"] != f">{limit}":
+                retrieved = True
+
+            page += 1
 
     return locations
