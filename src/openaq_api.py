@@ -1,12 +1,12 @@
 import requests
 import pycountry
+from collections import defaultdict
+from datetime import datetime
+import random
 
 from .common.tools import load_config
-from collections import defaultdict
 
-from datetime import datetime
-
-from typing import List, Dict
+from typing import List, Dict, Union
 
 
 def get_iso_country_codes(country_names: List[str]) -> List[str]:
@@ -26,10 +26,10 @@ def get_locations(
 
     config = load_config()
 
-    endpoint = f"{config["openaq_api_url"]}locations"
-    headers = headers = {"X-API-Key": config["openaq_api_key"]}
+    endpoint: str = f"{config["openaq_api_url"]}locations"
+    headers: Dict[str, str] = {"X-API-Key": config["openaq_api_key"]}
 
-    format_string = "%Y-%m-%dT%H:%M:%SZ"
+    datetime_format = "%Y-%m-%dT%H:%M:%S"
 
     locations = defaultdict(list)
 
@@ -38,20 +38,28 @@ def get_locations(
         retrieved = False
 
         while not retrieved:
-            params = {"iso": iso, "limit": limit, "page": page}
+            params: Dict[str, Union[str, int]] = {
+                "iso": iso,
+                "limit": limit,
+                "page": page,
+            }
 
             response = requests.get(endpoint, params=params, headers=headers)
-            response_json = response.json()
+            response_json: Dict = response.json()
 
             for loc in response_json["results"]:
 
                 if loc["datetimeFirst"] is None or loc["datetimeLast"] is None:
                     continue
                 elif (
-                    datetime.strptime(loc["datetimeFirst"]["utc"], format_string)
-                    < date_from
-                    and datetime.strptime(loc["datetimeLast"]["utc"], format_string)
-                    > date_to
+                    datetime.strptime(
+                        loc["datetimeFirst"]["local"][:-6], datetime_format
+                    )
+                    <= date_from
+                    and datetime.strptime(
+                        loc["datetimeLast"]["local"][:-6], datetime_format
+                    )
+                    >= date_to
                 ):
                     locations[loc["country"]["code"]].append(loc)
 
@@ -63,19 +71,59 @@ def get_locations(
     return dict(locations)
 
 
-def filter_sensors(locations, max_amount):
+def filter_sensors(
+    locations: List[Dict], max_amount: int, parameters: List[str] = []
+) -> Dict[str, List]:
 
-    filtered = defaultdict(list)
+    sensors: Dict[str, List] = defaultdict(list)
 
-    for location in locations:
-        for sensor in location["sensors"]:
+    for loc in locations:
+        for sensor in loc["sensors"]:
+            parameter_name = sensor["parameter"]["name"]
 
-            if len(filtered[sensor["parameter"]["name"]]) >= max_amount:
-                filtered[sensor["parameter"]["name"]].append(
-                    dict(
-                        coordinates=location["coordinates"],
-                        datetimeFirst=location["datetimeFirst"],
-                        datetimeLast=location["datetimeLast"],
-                        **sensor,
-                    )
-                )
+            if parameter_name in parameters or not parameters:
+                sensors[parameter_name].append(sensor)
+
+    filtered_sensors: Dict[str, List] = defaultdict()
+
+    for parameter_name, monitors in sensors.items():
+        if len(monitors) <= max_amount:
+            filtered_sensors[parameter_name] = monitors
+        else:
+            filtered_sensors[parameter_name] = random.sample(monitors, k=max_amount)
+
+    return dict(filtered_sensors)
+
+
+def get_sensor_measurements(
+    sensor_id: int, date_from: datetime, date_to: datetime
+) -> float:
+
+    config = load_config()
+
+    endpoint: str = f"{config["openaq_api_url"]}sensors/{sensor_id}/years"
+    headers: Dict[str, str] = {"X-API-Key": config["openaq_api_key"]}
+
+    datetime_format = "%Y-%m-%dT%H:%M:%S"
+
+    response = requests.get(endpoint, headers=headers)
+    response_json: Dict = response.json()
+
+    values: List[float] = []
+
+    for yearly_measurements in response_json["results"]:
+        if (
+            datetime.strptime(
+                yearly_measurements["period"]["datetimeFrom"]["local"][:-6],
+                datetime_format,
+            )
+            >= date_from
+            and datetime.strptime(
+                yearly_measurements["period"]["datetimeTo"]["local"][:-6],
+                datetime_format,
+            )
+            <= date_to
+        ):
+            values.append(yearly_measurements["value"])
+
+    return sum(values) / len(values)
