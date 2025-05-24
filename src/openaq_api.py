@@ -3,10 +3,16 @@ import pycountry
 from collections import defaultdict
 from datetime import datetime
 import random
+import logging
 
-from .common.tools import load_config
+from .common import tools
 
 from typing import List, Dict, Union
+
+if __name__ in logging.Logger.manager.loggerDict:
+    logger = logging.getLogger(__name__)
+else:
+    logger = tools.create_logger(logger_name=__name__)
 
 
 def get_iso_country_codes(country_names: List[str]) -> List[str]:
@@ -24,7 +30,7 @@ def get_locations(
     iso_codes: List[str], date_from: datetime, date_to: datetime, limit: int = 1000
 ) -> Dict[str, List]:
 
-    config = load_config()
+    config = tools.load_config()
 
     endpoint: str = f"{config["openaq_api_url"]}locations"
     headers: Dict[str, str] = {"X-API-Key": config["openaq_api_key"]}
@@ -45,28 +51,42 @@ def get_locations(
             }
 
             response = requests.get(endpoint, params=params, headers=headers)
-            response_json: Dict = response.json()
 
-            for loc in response_json["results"]:
+            if response.status_code == 429:
+                logger.info(
+                    "API request rate exceeded! Waiting 1 minute before trying another GET request."
+                )
+                tools.countdown(60)
+                logger.info("Trying to send a new GET request to API.")
 
-                if loc["datetimeFirst"] is None or loc["datetimeLast"] is None:
-                    continue
-                elif (
-                    datetime.strptime(
-                        loc["datetimeFirst"]["local"][:-6], datetime_format
-                    )
-                    <= date_from
-                    and datetime.strptime(
-                        loc["datetimeLast"]["local"][:-6], datetime_format
-                    )
-                    >= date_to
-                ):
-                    locations[loc["country"]["code"]].append(loc)
+            elif response.status_code == 200:
+                response_json: Dict = response.json()
 
-            if response_json["meta"]["found"] != f">{limit}":
-                retrieved = True
+                for loc in response_json["results"]:
 
-            page += 1
+                    if loc["datetimeFirst"] is None or loc["datetimeLast"] is None:
+                        continue
+                    elif (
+                        datetime.fromisoformat(loc["datetimeFirst"]["local"]).replace(
+                            tzinfo=None
+                        )
+                        <= date_from
+                        and datetime.fromisoformat(
+                            loc["datetimeLast"]["local"]
+                        ).replace(tzinfo=None)
+                        >= date_to
+                    ):
+                        locations[loc["country"]["code"]].append(loc)
+
+                if response_json["meta"]["found"] != f">{limit}":
+                    retrieved = True
+
+                page += 1
+
+            else:
+                logger.error(
+                    f"Got response with status code '{response.status_code}' when trying to fetch location ids."
+                )
 
     return dict(locations)
 
@@ -96,34 +116,61 @@ def filter_sensors(
 
 
 def get_sensor_measurements(
-    sensor_id: int, date_from: datetime, date_to: datetime
+    sensor_id: int, date_from: datetime, date_to: datetime, limit: int = 100
 ) -> float:
 
-    config = load_config()
+    config = tools.load_config()
 
     endpoint: str = f"{config["openaq_api_url"]}sensors/{sensor_id}/years"
     headers: Dict[str, str] = {"X-API-Key": config["openaq_api_key"]}
-
-    datetime_format = "%Y-%m-%dT%H:%M:%S"
-
-    response = requests.get(endpoint, headers=headers)
-    response_json: Dict = response.json()
+    page = 1
 
     values: List[float] = []
 
-    for yearly_measurements in response_json["results"]:
-        if (
-            datetime.strptime(
-                yearly_measurements["period"]["datetimeFrom"]["local"][:-6],
-                datetime_format,
-            )
-            >= date_from
-            and datetime.strptime(
-                yearly_measurements["period"]["datetimeTo"]["local"][:-6],
-                datetime_format,
-            )
-            <= date_to
-        ):
-            values.append(yearly_measurements["value"])
+    retrieved = False
 
-    return sum(values) / len(values)
+    while not retrieved:
+        params: Dict[str, Union[str, int]] = {
+            "limit": limit,
+            "page": page,
+        }
+
+        response = requests.get(endpoint, params=params, headers=headers)
+
+        if response.status_code == 429:
+            logger.info(
+                "API request rate exceeded! Waiting 1 minute before trying another GET request."
+            )
+            tools.countdown(60)
+            logger.info("Trying to send a new GET request to API.")
+
+        elif response.status_code == 200:
+            response_json: Dict = response.json()
+
+            for year in response_json["results"]:
+                if (
+                    datetime.fromisoformat(
+                        year["period"]["datetimeFrom"]["local"]
+                    ).replace(tzinfo=None)
+                    >= date_from
+                    and datetime.fromisoformat(
+                        year["period"]["datetimeTo"]["local"]
+                    ).replace(tzinfo=None)
+                    <= date_to
+                ):
+                    values.append(year["value"])
+
+            if response_json["meta"]["found"] != f">{limit}":
+                retrieved = True
+
+            page += 1
+
+        else:
+            logger.error(
+                f"Got response with status code '{response.status_code}' when trying to fetch sensor measurements."
+            )
+
+    if values:
+        return sum(values) / len(values)
+    else:
+        return -1
