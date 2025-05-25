@@ -8,40 +8,74 @@ sys.path.append(str(repo_root_dir))
 from datetime import datetime
 from collections import defaultdict
 from tqdm import tqdm
+import argparse
+from typing import List
 
 from src import openaq_api
 from src.common import tools
 
 
+parser = argparse.ArgumentParser(description="Hyperparameter configuration")
+
+parser.add_argument(
+    "--date-from",
+    type=str,
+    default="2024-1-1",
+    help="Start date when fetching measurements (year-month-day).",
+)
+parser.add_argument(
+    "--date-to",
+    type=str,
+    default="2025-1-1",
+    help="End date when fetching measurements (year-month-day).",
+)
+parser.add_argument(
+    "--max-sensors",
+    type=int,
+    default=10,
+    help="The max amount of sensors to get measurements from per country.",
+)
+
+
 def main():
+
+    args = parser.parse_args()
+
+    # Setup hyperparameters
+    DATE_FROM: datetime = datetime.strptime(args.date_from, "%Y-%m-%d")
+    DATE_TO: datetime = datetime.strptime(args.date_to, "%Y-%m-%d")
+    MAX_SENSORS_PER_COUNTRY = args.max_sensors
+    COUNTRIES: List[str] = ["Norway", "Japan", "United Kingdom"]
 
     logger = tools.create_logger(logger_name=__name__)
 
     config = tools.load_config()
 
-    countries = ["Norway", "Japan", "United Kingdom"]
-    date_from = datetime(2024, 1, 1)
-    date_to = datetime(2025, 1, 1)
+    logger.debug(
+        f"Using hyperparameters:"
+        f"\n    date_from = {DATE_FROM.isoformat()}"
+        f"\n    date_to = {DATE_TO.isoformat()}"
+        f"\n    max_sensors_per_country = {MAX_SENSORS_PER_COUNTRY}"
+        f"\n    country = {COUNTRIES}"
+    )
 
     # Convert country names into iso alpha-2 codes
-    logger.info(f"Getting iso alpha-2 codes for countries:\n{countries}")
+    logger.info(f"Getting iso alpha-2 codes for countries:\n{COUNTRIES}")
 
-    iso_codes = openaq_api.get_iso_country_codes(countries)
+    iso_codes: List[str] = tools.get_alpha2_iso_codes(COUNTRIES)
 
     # Getting locations ids for all locations in chosen countries
     logger.info(f"Getting location ids...")
-    logger.debug(
-        f"Fetching locations with measurements between dates '{date_from.isoformat()}' and '{date_to.isoformat()}'."
-    )
 
     country_locations = openaq_api.get_locations(
-        iso_codes, date_from=date_from, date_to=date_to
+        iso_codes, date_from=DATE_FROM, date_to=DATE_TO
     )
 
     logger.info(f"Successfully fetched location ids!")
 
-    sensor_parameters = ["pm25", "pm10", "no2"]
-    max_sensors_per_country = 5
+    sensor_parameters: List[str] = ["pm25", "pm10", "no2"]
+    MAX_SENSORS_PER_COUNTRY = 10
+
     sensor_measurements = defaultdict(dict)
 
     for country, locations in tqdm(
@@ -51,7 +85,7 @@ def main():
         desc=f"Iterating though countries",
     ):
         filtered_sensors = openaq_api.filter_sensors(
-            locations, max_amount=max_sensors_per_country, parameters=sensor_parameters
+            locations, max_amount=MAX_SENSORS_PER_COUNTRY, parameters=sensor_parameters
         )
 
         for parameter, sensors in tqdm(
@@ -62,7 +96,7 @@ def main():
         ):
             measurements = [
                 openaq_api.get_sensor_measurements(
-                    sensor["id"], date_from=date_from, date_to=date_to
+                    sensor["id"], date_from=DATE_FROM, date_to=DATE_TO
                 )
                 for sensor in sensors
             ]

@@ -9,21 +9,11 @@ from .common import tools
 
 from typing import List, Dict, Union
 
+
 if __name__ in logging.Logger.manager.loggerDict:
     logger = logging.getLogger(__name__)
 else:
     logger = tools.create_logger(logger_name=__name__)
-
-
-def get_iso_country_codes(country_names: List[str]) -> List[str]:
-
-    country_dict: Dict[str, str] = {
-        country.name: country.alpha_2 for country in list(pycountry.countries)  # type: ignore
-    }
-
-    filtered_iso_codes: List[str] = [country_dict[name] for name in country_names]
-
-    return filtered_iso_codes
 
 
 def get_locations(

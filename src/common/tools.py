@@ -5,8 +5,20 @@ import csv
 import logging
 from tqdm import tqdm
 import time
+import pycountry
 
 from typing import Dict, Union, List, Optional
+
+
+def get_alpha2_iso_codes(country_names: List[str]) -> List[str]:
+
+    country_dict: Dict[str, str] = {
+        country.name: country.alpha_2 for country in list(pycountry.countries)  # type: ignore
+    }
+
+    filtered_iso_codes: List[str] = [country_dict[name] for name in country_names]
+
+    return filtered_iso_codes
 
 
 def load_config():
