@@ -21,6 +21,15 @@ def get_alpha2_iso_codes(country_names: List[str]) -> List[str]:
     return filtered_iso_codes
 
 
+def average(l, decimal_points=3):
+    l = list(filter(None, l))
+
+    if len(l) > 0:
+        return round(sum(l) / len(l), decimal_points)
+    else:
+        return None
+
+
 def load_config():
     # Read in the configuration file
     with open(

@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 import random
 import logging
+from tqdm import tqdm
 
 from .common import tools
 
@@ -25,11 +26,11 @@ def get_locations(
     endpoint: str = f"{config["openaq_api_url"]}locations"
     headers: Dict[str, str] = {"X-API-Key": config["openaq_api_key"]}
 
-    datetime_format = "%Y-%m-%dT%H:%M:%S"
-
     locations = defaultdict(list)
 
-    for iso in iso_codes:
+    for iso in tqdm(
+        iso_codes, position=1, leave=False, desc="Getting location ids for countries."
+    ):
         page = 1
         retrieved = False
 
@@ -107,7 +108,7 @@ def filter_sensors(
 
 def get_sensor_measurements(
     sensor_id: int, date_from: datetime, date_to: datetime, limit: int = 100
-) -> float:
+) -> float | None:
 
     config = tools.load_config()
 
@@ -160,7 +161,4 @@ def get_sensor_measurements(
                 f"Got response with status code '{response.status_code}' when trying to fetch sensor measurements."
             )
 
-    if values:
-        return sum(values) / len(values)
-    else:
-        return -1
+    return tools.average(values)
