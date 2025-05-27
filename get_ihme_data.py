@@ -18,9 +18,12 @@ from src.common import tools
 parser = argparse.ArgumentParser(description="Hyperparameter configuration")
 
 parser.add_argument(
-    "--indicator-id",
+    "--indicator-ids",
     type=int,
-    default=1001,
+    default=[
+        1000,
+        1001,
+    ],
     help="Id for which indicator to get data for.",
 )
 parser.add_argument(
@@ -54,7 +57,7 @@ def main():
     args = parser.parse_args()
 
     # Setup hyperparameters
-    INDICATOR_ID: int = args.indicator_id
+    INDICATOR_IDS: List[int] = args.indicator_ids
     YEAR: int = args.year
     SEX_ID: int = args.sex_id
     AGE_GROUP_ID: int = args.age_group_id
@@ -257,7 +260,7 @@ def main():
 
     logger.debug(
         f"Using hyperparameters:"
-        f"\n    indicator_id = {INDICATOR_ID}"
+        f"\n    indicator_ids = {INDICATOR_IDS}"
         f"\n    year = {YEAR}"
         f"\n    sex_id = {SEX_ID}"
         f"\n    age_group_id = {AGE_GROUP_ID}"
@@ -273,20 +276,23 @@ def main():
     # Getting values for given target for all locations ids
     logger.info(f"Getting values for location ids...")
 
-    values = defaultdict(float)
+    values = defaultdict(defaultdict)
 
     for iso, id in tqdm(location_ids.items(), leave=False, position=1):
-        values[iso] = ihme_api.get_target(
-            location_id=id,
-            indicator_id=INDICATOR_ID,
-            year=YEAR,
-            sex_id=SEX_ID,
-            age_group_id=AGE_GROUP_ID,
-            scenario=SCENARIO,
-        )
+        for indicator_id in tqdm(INDICATOR_IDS, leave=False, position=2):
+            indicator_name = ihme_api.get_indicator_name(indicator_id)
+
+            values[iso][indicator_name] = ihme_api.get_target(
+                location_id=id,
+                indicator_id=indicator_id,
+                year=YEAR,
+                sex_id=SEX_ID,
+                age_group_id=AGE_GROUP_ID,
+                scenario=SCENARIO,
+            )
 
     values: List[Dict[str, float]] = [
-        dict(country=country, value=value) for country, value in values.items()
+        dict(country=country, **values) for country, values in values.items()
     ]
 
     # Saving sensor measurements to .csv file

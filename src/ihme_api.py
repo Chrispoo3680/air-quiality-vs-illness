@@ -38,6 +38,22 @@ def get_location_ids(countries: List[str]) -> Dict[str, int]:
     return dict(location_ids)
 
 
+def get_indicator_name(indicator_id):
+    config = tools.load_config()
+
+    endpoint: str = f"{config["ihme_api_url"]}GetIndicator"
+    headers: Dict[str, str] = {
+        "Content-Type": "application/json",
+        "Authorization": config["ihme_api_key"],
+    }
+    params = {"indicator_id": indicator_id}
+
+    response = requests.get(endpoint, params=params, headers=headers)
+    response_json = response.json()
+
+    return response_json["results"][0]["indicator_name"]
+
+
 def get_target(
     location_id: int,
     indicator_id: int,
@@ -72,5 +88,7 @@ def get_target(
         logger.warning(
             "Response had more than one result! The value from the first result will be used"
         )
-
-    return round(float(results[0]["mean_estimate"]), 3)
+    elif len(results) == 0:
+        return None
+    else:
+        return round(float(results[0]["mean_estimate"]), 3)
