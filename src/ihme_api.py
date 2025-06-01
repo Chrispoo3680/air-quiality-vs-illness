@@ -5,7 +5,7 @@ import pycountry
 
 from .common import tools
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 
 if __name__ in logging.Logger.manager.loggerDict:
@@ -61,7 +61,7 @@ def get_target(
     sex_id: int,
     age_group_id: int,
     scenario: int,
-) -> float:
+) -> Optional[float]:
 
     config = tools.load_config()
 
